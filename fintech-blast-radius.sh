@@ -1,8 +1,3 @@
----
-
-### 💻 File 2: `fintech-blast-radius.sh`
-
-```bash
 #!/bin/bash
 
 # Define clear terminal colors for the executive report output
@@ -13,7 +8,7 @@ BLUE='\033[0;34m'
 NC='\033[0;0m' # No Color
 
 echo -e "${BLUE}==================================================================${NC}"
-echo -e "${BLUE}📊 FINTECH AUTOMATED RANSOMWARE BLAST-RADIUS & COMPLIANCE REPORT 📊${NC}"
+echo -e "${BLUE}FINTECH AUTOMATED RANSOMWARE BLAST-RADIUS & COMPLIANCE REPORT${NC}"
 echo -e "${BLUE}==================================================================${NC}"
 echo -e "Generated on: $(date)"
 echo ""
@@ -56,7 +51,7 @@ ROLES_WITH_ADMIN=$(aws iam list-entities-for-policy --policy-arn arn:aws:iam::aw
 if [ -z "$ROLES_WITH_ADMIN" ]; then
     echo -e "${GREEN}[✔] Zero service identities map to broad AdministratorAccess.${NC}"
 else
-    echo -e "${RED}🚨 CRITICAL SECURITY DEFECT: The following roles hold un-scoped Administrative Rights:${NC}"
+    echo -e "${RED}CRITICAL SECURITY DEFECT: The following roles hold un-scoped Administrative Rights:${NC}"
     for role in $ROLES_WITH_ADMIN; do
         echo -e "  - IAM Identity Profile: ${RED}$role${NC}"
     done
