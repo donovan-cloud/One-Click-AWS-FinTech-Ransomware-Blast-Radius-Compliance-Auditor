@@ -1,4 +1,4 @@
-AWS FinTech Storage Plane & Identity Infrastructure Security Auditor
+# AWS FinTech Storage Plane & Identity Infrastructure Security Auditor
 
 1. Project Architectural Overview
 
