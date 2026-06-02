@@ -1,48 +1,118 @@
 # AWS FinTech Storage Plane & Identity Infrastructure Security Auditor
 
-1. Project Architectural Overview
+[![Runtime](https://img.shields.io/badge/Runtime-Bash_Shell-green.svg)](https://www.gnu.org/software/bash/)
+[![Provider](https://img.shields.io/badge/Provider-AWS_CLI-orange.svg)](https://aws.amazon.com/cli/)
+[![Category](https://img.shields.io/badge/Security-Infrastructure_Audit-blue.svg)](https://aws.amazon.com/security/)
+[![Compliance](https://img.shields.io/badge/Compliance-PCI--DSS_/_SOC_2-red.svg)](https://aws.amazon.com/security/)
 
-This repository contains an enterprise-grade, zero-data-retention security assessment engine designed for rapid deployment within highly regulated Financial Technology environments. Operating with localized administrative scope natively inside the AWS CloudShell environment, this framework programmatically maps account-wide data exposure vulnerabilities, evaluates storage architectures against destructive ransomware configurations, isolates identity privilege escalation vectors, and flags critical compliance defects—delivering a comprehensive risk landscape synthesis in under 60 seconds.
+## 📋 Project Overview
+This repository contains an enterprise-grade, zero-data-retention security assessment engine designed for rapid deployment inside highly regulated Financial Technology environments. 
 
-2. Technical Audit Vectors & Risk Mapping
+Operating with localized administrative scope natively within the AWS CloudShell environment, this framework programmatically maps account-wide data exposure vulnerabilities, evaluates storage architectures against destructive ransomware configurations, isolates identity privilege escalation vectors, and flags critical compliance defects—delivering a comprehensive risk landscape synthesis in under 60 seconds.
+
+---
+
+## 🔍 Technical Audit Vectors & Risk Mapping
 
 The assessment engine performs deep-plane metadata inspection across three primary high-severity threat vectors:
 
-2.1 Storage Layer Resiliency & WORM Immutability Audit
-Telemetry Targets: Programmatically queries all Amazon S3 resource buckets specifically evaluating the active states of S3 Bucket Versioning and S3 Object Lock configuration metadata.
+| Audit Target | Telemetry Parameters | Adversary Risk Vector |
+| :--- | :--- | :--- |
+| **Storage Layer Immutability** | Amazon S3 Bucket Versioning & S3 Object Lock states | Storage environments operating without WORM constraints allow compromised credentials to execute destructive object overwrites, eliminating point-in-time recovery during a ransomware event. |
+| **Identity Plane Blast Radius** | AWS IAM infrastructure roles bound to `AdministratorAccess` | Attaching un-scoped administrative capabilities to compute platforms (Lambda, EC2) presents a critical lateral-movement target if an attacker achieves Remote Code Execution (RCE). |
+| **Cryptographic Governance** | AWS KMS Customer Managed Keys (CMK) annual rotation status | Prolonged cryptographic key lifecycles increase the statistical feasibility of historical data decryption upon credential compromise, violating financial data protection mandates. |
 
-Adversary Risk Vector: Storage environments operating without rigid data immutability constraints allow compromised credentials or application-layer flaws to execute destructive object overwrites or malicious bulk encryption. This completely eliminates the organization's native point-in-time recovery capabilities during an active ransomware extortion event.
+---
 
-2.2 Identity Plane Blast Radius & Privilege Escalation Analysis
+## 🏗️ Script Logic & Structural Execution
 
-Telemetry Targets: Interrogates the AWS IAM infrastructure layer to isolate active, system-facing service roles directly bound to the global AdministratorAccess managed policy footprint.
+The execution trace runs sequentially via a native Shell script following a strict operational flow:
+1. **Visual Mappings:** Maps environment terminal text outputs using standard ANSI escape sequences (`Red` for critical defects, `Yellow` for active scanning, `Green` for compliant states).
+2. **Storage Loop:** Targets the S3 service resource plane to parse active metadata signatures, flagging any buckets operating without explicit point-in-time recovery and WORM capabilities.
+3. **Identity Check:** Interrogates the IAM API layer to isolate any application or microservice execution roles improperly carrying global root-level administrator privileges.
+4. **Crypto Validation:** Queries the KMS configuration layer to catch keys operating with automated annual rotation turned off.
 
-Adversary Risk Vector: Attaching un-scoped administrative capabilities to application or compute environments, such as AWS Lambda functions or Amazon EC2 instances, presents a critical lateral-movement target. An attacker achieving Remote Code Execution via the application runtime can instantly hijack the host role to compromise the entire cloud organization.
+---
 
-2.3 Storage Cryptographic Rotation & Compliance Audit
+## 💻 Core Assessment Engine Script (`audit-engine.sh`)
 
-Telemetry Targets: Evaluates account-level Customer Managed Keys within the AWS Key Management Service to isolate active cryptographic keys running with automated annual rotation variables set to a false value.
+This shell script executes the zero-data-retention security assessment directly through the AWS command-line plane, outputting a live, colorized posture readout:
 
-Adversary Risk Vector: Prolonged cryptographic key lifecycles increase the statistical feasibility of historical data decryption upon credential compromise, violating foundational compliance mandates concerning financial data-at-rest protection.
+```bash
+#!/bin/bash
 
-3. Script Logic & Structural Execution
+# Define clear terminal colors for the executive report output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0;0m' # No Color
 
-The execution trace runs sequentially via an executable Shell script. The program flow functions through the following logical progression:
+echo -e "${BLUE}==================================================================${NC}"
+echo -e "${BLUE}FINTECH AUTOMATED RANSOMWARE BLAST-RADIUS & COMPLIANCE REPORT${NC}"
+echo -e "${BLUE}==================================================================${NC}"
+echo -e "Generated on: $(date)"
+echo ""
 
-Initialization Phase: Environmental terminal text colors are mapped using standard ANSI escape sequences. Red represents critical system vulnerabilities, yellow indicates active processing tasks, blue designates header wrappers, and green marks fully compliant infrastructures.
+# --- AUDIT VECTOR 1: S3 RANSOMWARE & WORM ANALYSIS ---
+echo -e "${YELLOW}[*] Auditing Storage Plane for Ransomware Resiliency...${NC}"
+BUCKETS=$(aws s3api list-buckets --query "Buckets[*].Name" --output text 2>/dev/null)
 
-Storage Plane Loop: The engine executes an API listing query against the S3 service resource plane. For each detected unique bucket identifier, consecutive API calls are dispatched to fetch the bucket versioning status and object lock configuration. If either check fails to return an enabled flag, a high-risk defect warning is printed to stdout.
+if [ -z "$BUCKETS" ]; then
+    echo -e "${GREEN}[✔] No S3 Buckets discovered in this target environment.${NC}"
+else
+    for bucket in $BUCKETS; do
+        # Check for Point-in-Time Versioning
+        VERSIONING=$(aws s3api get-bucket-versioning --bucket "$bucket" --query "Status" --output text 2>/dev/null)
+        # Check for Immutable Object Lock Configuration
+        OBJECT_LOCK=$(aws s3api get-bucket-object-lock-configuration --bucket "$bucket" --query "ObjectLockConfiguration.ObjectLockEnabled" --output text 2>/dev/null)
+        
+        echo -e "Target Bucket: ${BLUE}$bucket${NC}"
+        
+        if [ "$VERSIONING" == "Enabled" ]; then
+            echo -e "  - S3 Versioning State: ${GREEN}ENABLED${NC}"
+        else
+            echo -e "  - S3 Versioning State: ${RED}CRITICAL VULNERABILITY (Missing Point-in-Time Recovery)${NC}"
+        fi
+        
+        if [ "$OBJECT_LOCK" == "Enabled" ]; then
+            echo -e "  - S3 WORM Object Lock: ${GREEN}ENABLED${NC}"
+        else
+            echo -e "  - S3 WORM Object Lock: ${RED}HIGH RISK (Vulnerable to Ransomware Administrative Deletion)${NC}"
+        fi
+        echo ""
+    done
+fi
 
-Identity Plane Query: The script targets the IAM API layer, filtering entities explicitly attached to the Amazon Resource Name for the global root-level administrator policy. Any service roles detected within this array are flagged as critical security defects.
+# --- AUDIT VECTOR 2: IDENTITY COMPLIANCE & PRIVILEGE ESCALATION ---
+echo -e "${YELLOW}[*] Evaluating Identity Plane for Over-Privileged Service Entities...${NC}"
+# Query for Roles containing the broad AdministratorAccess managed policy footprint
+ROLES_WITH_ADMIN=$(aws iam list-entities-for-policy --policy-arn arn:aws:iam::aws:policy/AdministratorAccess --query "PolicyRoles[*].RoleName" --output text 2>/dev/null)
 
-Cryptographic Keys Validation: A master list of account-level Key Identifiers is requested from the KMS API. The script iterates through each key string, querying the rotation boolean status. Keys returning a false state are flagged as non-compliant.
+if [ -z "$ROLES_WITH_ADMIN" ]; then
+    echo -e "${GREEN}[✔] Zero service identities map to broad AdministratorAccess.${NC}"
+else
+    echo -e "${RED}CRITICAL SECURITY DEFECT: The following roles hold un-scoped Administrative Rights:${NC}"
+    for role in $ROLES_WITH_ADMIN; do
+        echo -e "  - IAM Identity Profile: ${RED}$role${NC}"
+    done
+fi
+echo ""
 
-4. Professional Retainer Remediation & Deliverables Blueprint
+# --- AUDIT VECTOR 3: DATA AT REST REPLICATED ENCRYPTION CHECKS ---
+echo -e "${YELLOW}[*] Validating Storage Layer Cryptographic Isolations...${NC}"
+echo -e "Reviewing account-wide managed encryption states for compliance artifacts..."
+# Quickly check if any standard custom KMS master keys are configured for manual rotation
+KMS_KEYS=$(aws kms list-keys --query "Keys[*].KeyId" --output text 2>/dev/null)
 
-The technical vulnerabilities identified by this script serve as the direct foundational input for a structured, continuous SecOps architecture retainer. Remediation pipelines are mapped into three precise engineering phases:
+for key in $KMS_KEYS; do
+    ROTATION_STATUS=$(aws kms get-key-rotation-status --key-id "$key" --query "KeyRotationEnabled" --output text 2>/dev/null)
+    if [ "$ROTATION_STATUS" == "false" ]; then
+        echo -e "  - KMS Key ID: ${BLUE}$key${NC} Status: ${YELLOW}NON-COMPLIANT (Automatic Annual Rotation Disabled)${NC}"
+    fi
+done
 
-Identity Architecture Hardening: Eradicating un-scoped AWS-managed policies from application contexts and engineering surgical, customer-managed inline IAM policies restricted to exact programmatic system calls.
-
-Immutability Controls Enforcement: Provisioning definitive infrastructure-as-code configurations using Terraform modules to enforce S3 Object Lock compliance, legal hold parameters, and multi-factor authentication delete mechanics across all core transactional persistence layers.
-
-Continuous Compliance Guardrails: Designing and deploying custom AWS Config rules to actively monitor resource state changes, mapping configuration drift in real time to satisfy PCI-DSS v4.0.1 Requirement 3 and Requirement 7 alongside SOC 2 Type II Identity Governance frameworks.
+echo ""
+echo -e "${BLUE}==================================================================${NC}"
+echo -e "${BLUE}            [✔] AUDIT ENGINE PROCESSING COMPLETE                  ${NC}"
+echo -e "${BLUE}==================================================================${NC}"
